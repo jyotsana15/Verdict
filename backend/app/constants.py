@@ -1,0 +1,195 @@
+"""
+Named constants for the Verdict system.
+Centralized here so nothing is a magic number and Phase 2+ can tune
+any of these from a single location.
+"""
+
+# ---------------------------------------------------------------------------
+# PDF validation
+# ---------------------------------------------------------------------------
+MAX_PDF_PAGES = 40
+MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
+MIN_EXTRACTED_TEXT_LENGTH = 100  # chars; below this → likely scanned / image-only
+
+# ---------------------------------------------------------------------------
+# Chunking
+# ---------------------------------------------------------------------------
+CHUNK_SIZE_WORDS = 400        # target ~300-500 words per chunk
+CHUNK_OVERLAP_WORDS = 50      # overlap between consecutive chunks
+
+# ---------------------------------------------------------------------------
+# Retrieval
+# ---------------------------------------------------------------------------
+TOP_K_RETRIEVAL = 5           # chunks returned per similarity search
+
+# ---------------------------------------------------------------------------
+# Embeddings (Gemini API — no local model, no PyTorch)
+# ---------------------------------------------------------------------------
+EMBEDDING_MODEL_NAME = "gemini-embedding-001"
+EMBEDDING_DIMENSION = 384     # output_dimensionality sent to Gemini API;
+                              # matches existing Supabase vector(384) column
+EMBEDDING_SPACE_ID = f"{EMBEDDING_MODEL_NAME}:{EMBEDDING_DIMENSION}"
+
+# ---------------------------------------------------------------------------
+# Grounding validation
+# ---------------------------------------------------------------------------
+GROUNDING_SIMILARITY_THRESHOLD = 0.60  # cosine; below → citation invalid
+LEXICAL_GROUNDING_SIMILARITY_THRESHOLD = 0.45
+# Topical relatedness is broader than claim-to-passage grounding, so it uses a
+# lower threshold. This is deliberately a named calibration point: §21 defines
+# the signal but does not prescribe a model-specific cutoff.
+EXTERNAL_CITATION_RELEVANCE_THRESHOLD = 0.45
+
+# ---------------------------------------------------------------------------
+# Self-consistency check (Phase 2)
+# ---------------------------------------------------------------------------
+SELF_CONSISTENCY_THRESHOLD = 0.5  # re-run referee if confidence < 0.5
+
+EXCHANGES_PER_ROUND = 3       # fixed for Phase 1 (Fast depth)
+MAX_ATTACKER_RETRIES = 2      # retries if attacker's own citations fail
+
+# ---------------------------------------------------------------------------
+# Product configuration (Phase 3)
+# ---------------------------------------------------------------------------
+# Depth deliberately controls topic breadth, never the number of exchanges in
+# an individual round.  Keeping these constraints central lets both the API and
+# UI expose the same predictable quota/cost envelope.
+DEPTH_TOPIC_LIMITS = {
+    "fast": (1, 2),
+    "deep": (3, 4),
+    "exhaustive": (5, 6),
+}
+
+DEFAULT_TOPICS_BY_DEPTH = {
+    "fast": ("theoretical_soundness", "experimental_setup"),
+    "deep": (
+        "novelty_scope",
+        "theoretical_soundness",
+        "experimental_setup",
+        "reproducibility",
+    ),
+    "exhaustive": (
+        "novelty_scope",
+        "theoretical_soundness",
+        "experimental_setup",
+        "reproducibility",
+        "limitations_impact",
+        "statistical_rigor",
+    ),
+}
+
+STRICTNESS_LEVELS = {
+    "constructive": "Constructive Peer",
+    "standard": "Standard Reviewer",
+    "brutal": "Brutal Adversary",
+}
+
+STRICTNESS_FRAMING = {
+    "constructive": (
+        "Be demanding but collaborative. Prioritize the highest-leverage gap, "
+        "acknowledge sound choices, and phrase the critique as a concrete path "
+        "the authors could realistically act on."
+    ),
+    "standard": (
+        "Apply the standards of a careful venue reviewer. Be direct, balanced, "
+        "and proportionate to the evidence; do not soften a material flaw or "
+        "inflate a minor concern."
+    ),
+    "brutal": (
+        "Apply an exacting adversarial standard. Stress-test the strongest "
+        "claims, demand precise evidence for every material choice, and surface "
+        "the most consequential publication-blocking weakness without being "
+        "hostile or speculative."
+    ),
+}
+
+DOMAIN_NAMES = {
+    "ml_cs": "Machine Learning / Computer Science",
+    "life_sciences": "Life Sciences",
+    "social_science": "Social Science",
+    "other": "Other / General Research",
+}
+
+DOMAIN_FRAMING = {
+    "ml_cs": (
+        "Use ML/CS review norms: examine baselines, ablations, data leakage, "
+        "benchmark validity, algorithmic assumptions, compute disclosure, and "
+        "code/configuration reproducibility where relevant."
+    ),
+    "life_sciences": (
+        "Use life-sciences review norms: examine biological controls, sample "
+        "selection, reagent and material traceability, protocol detail, database "
+        "deposition, statistical power, and ethics/consent where applicable. Do "
+        "not demand ML-style ablations unless the work actually uses ML."
+    ),
+    "social_science": (
+        "Use social-science review norms: examine construct validity, sampling "
+        "and generalizability, pre-registration, multiple testing, instruments "
+        "and materials availability, IRB/consent, and plausible alternative "
+        "explanations. Do not import irrelevant ML benchmark conventions."
+    ),
+    "other": (
+        "Use field-neutral scholarly standards and infer appropriate evidence "
+        "norms from the manuscript itself. Avoid imposing ML-specific, wet-lab, "
+        "or human-subject requirements when they do not apply."
+    ),
+}
+
+# ---------------------------------------------------------------------------
+# LLM
+# ---------------------------------------------------------------------------
+GEMINI_MODEL = "gemini-3.1-flash-lite"
+LLM_MAX_RETRIES = 5
+LLM_BASE_DELAY_SECONDS = 2   # exponential backoff base for 429s
+
+# ---------------------------------------------------------------------------
+# Round topics — slug → display name
+# The slug is the stored enum value; display name is for prompts & UI.
+# ---------------------------------------------------------------------------
+ROUND_TOPICS = {
+    "novelty_scope": "Novelty, Scope & Problem Formulation",
+    "theoretical_soundness": "Theoretical Soundness & Mathematical Rigor",
+    "experimental_setup": "Experimental Setup, Datasets & Baselines",
+    "reproducibility": "Reproducibility, Compute & Ablation Studies",
+    "limitations_impact": "Limitations, Broader Impact & Edge Cases",
+    "statistical_rigor": "Statistical Rigor & Methodological Validity",
+}
+
+# Topic-specific framing for the Attacker system prompt — tells the Attacker
+# what *kind* of weakness to hunt for in each topic area.
+TOPIC_ATTACK_FRAMING = {
+    "novelty_scope": (
+        "Focus on whether the problem is well-posed and the contribution is "
+        "genuinely novel. Look for unstated overlap with prior work, vague "
+        "claims of novelty without evidence, or a scope that is too narrow / "
+        "too broad to support the stated contributions."
+    ),
+    "theoretical_soundness": (
+        "Focus on mathematical derivations, proofs, and theoretical assumptions. "
+        "Look for logical gaps, unjustified assumptions, missing edge-case "
+        "analysis in proofs, or steps that do not follow from their premises."
+    ),
+    "experimental_setup": (
+        "Focus on experimental design, dataset choices, and baselines. "
+        "Look for missing baselines that are standard in this area, unfair "
+        "comparisons, dataset biases, or evaluation metrics that do not "
+        "align with the paper's claims."
+    ),
+    "reproducibility": (
+        "Focus on whether someone else could reproduce these results. "
+        "Look for missing hyperparameters, undisclosed compute requirements, "
+        "absent ablation studies, or reliance on proprietary data or code "
+        "without an availability statement."
+    ),
+    "limitations_impact": (
+        "Focus on whether the paper honestly addresses where its approach "
+        "breaks down. Look for missing discussion of failure modes, societal "
+        "impact, distributional assumptions, or edge cases that the method "
+        "would not handle."
+    ),
+    "statistical_rigor": (
+        "Focus on statistical methodology, sample sizes, p-values, power analysis, "
+        "effect sizes, multiple hypothesis testing corrections, and whether the "
+        "reported statistical significance genuinely supports the claims made."
+    ),
+}
